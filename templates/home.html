@@ -1,0 +1,247 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+  .camera-box {
+    height: 240px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f1f3f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .camera-box img {
+    /* width: 100%; */
+    height: 100%;
+    object-fit: cover;
+  }
+  .alt-btn { min-width: 64px; }
+  .auto-active { box-shadow: 0 0 0 3px rgba(16,185,129,0.12); }
+  #map { height: 200px; border-radius: 12px; }  /* ↓ giảm kích thước bản đồ */
+</style>
+
+<div class="row g-3">
+
+  <!-- ==== CAMERA + MAP ==== -->
+  <div class="card shadow-sm p-3 mb-3">
+    <div class="row g-3 align-items-stretch">
+      <!-- CAMERA -->
+      <div class="col-lg-6 col-md-6 col-12">
+        <h6 class="text-center text-success mb-2">Ảnh camera hiện tại</h6>
+        <div class="camera-box mb-2">
+          {% if latest_img %}
+            {% if latest_img.endswith('.txt') %}
+              <pre class="small bg-light">{{ (open('static/uploads/' + latest_img).read()) }}</pre>
+            {% else %}
+              <img id="camera-img" src="{{ latest_path }}" alt="Camera image">
+            {% endif %}
+          {% else %}
+            <img src="../static/uploads/demo.jpg" alt="demo camera">
+          {% endif %}
+        </div>
+        <div class="d-flex justify-content-between small text-muted">
+          <div>File: <span id="camera-file">{{ latest_img or '—' }}</span></div>
+          <div id="camera-time">{{ '' }}</div>
+        </div>
+      </div>
+
+      <!-- MAP -->
+      <div class="col-lg-6 col-md-6 col-12">
+        <h6 class="text-center text-primary mb-2">Vị trí Drone</h6>
+        <div id="map"></div>
+        <div class="mt-2 small text-muted text-center">
+          Hướng: <span id="heading">--</span>° |
+          Cao độ: <span id="altitude">--</span> m
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==== STATUS + CONTROLS ==== -->
+  <div class="col-lg-6 col-md-12">
+    <div class="card shadow-sm p-3 mb-3">
+      <h6 class="text-center mb-2">Điều khiển bay</h6>
+      <div class="d-flex justify-content-center mb-2">
+        <button id="alt-up" class="btn btn-outline-primary alt-btn me-2">⬆ +1m</button>
+        <button id="alt-down" class="btn btn-outline-primary alt-btn">⬇ -1m</button>
+      </div>
+
+      <div class="d-grid gap-2">
+        <div class="row g-2">
+          <div class="col-4"><button class="btn btn-outline-secondary btn-lg w-100 control-btn" data-cmd="up">▲</button></div>
+          <div class="col-4"><button class="btn btn-outline-secondary btn-lg w-100 control-btn" data-cmd="forward">▲ Tiến</button></div>
+          <div class="col-4"><button class="btn btn-outline-secondary btn-lg w-100 control-btn" data-cmd="yaw_left">⟲ Quay</button></div>
+
+          <div class="col-4 mt-1"><button class="btn btn-outline-secondary btn-lg w-100 control-btn" data-cmd="left">◀ Trái</button></div>
+          <div class="col-4 mt-1"><button class="btn btn-danger btn-lg w-100 control-btn" data-cmd="stop">⏹ Dừng</button></div>
+          <div class="col-4 mt-1"><button class="btn btn-outline-secondary btn-lg w-100 control-btn" data-cmd="right">Phải ▶</button></div>
+
+          <div class="col-4 mt-1"><button class="btn btn-outline-secondary btn-lg w-100 control-btn" data-cmd="yaw_right">⟳ Quay</button></div>
+          <div class="col-4 mt-1"><button class="btn btn-outline-secondary btn-lg w-100 control-btn" data-cmd="backward">▼ Lùi</button></div>
+          <div class="col-4 mt-1"><button class="btn btn-outline-secondary btn-lg w-100 control-btn" data-cmd="down">▼</button></div>
+        </div>
+
+        <div class="row mt-2">
+          <div class="col-6"><button class="btn btn-success btn-lg w-100 control-btn" data-cmd="takeoff">Cất cánh</button></div>
+          <div class="col-6"><button class="btn btn-warning btn-lg w-100 control-btn" data-cmd="land">Hạ cánh</button></div>
+        </div>
+
+        <div class="row mt-2">
+          <div class="col-8">
+            <button id="auto-toggle" class="btn btn-outline-success w-100">▶ Bay tự động: OFF</button>
+          </div>
+          <div class="col-4">
+            <select id="auto-interval" class="form-select form-select-sm">
+              <option value="800">0.8s</option>
+              <option value="1200" selected>1.2s</option>
+              <option value="1800">1.8s</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==== SENSOR PANEL ==== -->
+  <div class="col-lg-6 col-md-12">
+    <div class="card shadow-sm p-3">
+            <h5 class="text-primary mb-3 text-center">Trạng thái Drone</h5>
+
+      <div class="row g-2 mb-2">
+        <div class="col-6">
+          <small>Pin</small>
+          <div class="progress" style="height:18px">
+            <div id="battery-bar" class="progress-bar" role="progressbar" style="width:0%">0%</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <small>Sóng</small>
+          <div class="progress" style="height:18px">
+            <div id="signal-bar" class="progress-bar bg-info" role="progressbar" style="width:0%">0%</div>
+          </div>
+        </div>
+        <div class="col-12 mt-2">
+          <small>Thẻ SD</small>
+          <div class="progress" style="height:18px">
+            <div id="sd-bar" class="progress-bar bg-success" role="progressbar" style="width:0%">0 / 0 MB</div>
+          </div>
+        </div>
+        <div class="col-12 mt-2">
+          <small>Vị trí</small>
+          <div class="small text-muted" id="position-text">-- , --</div>
+        </div>
+      </div>
+      <h6 class="text-center text-primary mb-2">Cảm biến & Telemetry</h6>
+      <div class="row g-2 text-center">
+        <div class="col-4"><small>Yaw</small><div id="yaw-val">--°</div></div>
+        <div class="col-4"><small>Pitch</small><div id="pitch-val">--°</div></div>
+        <div class="col-4"><small>Roll</small><div id="roll-val">--°</div></div>
+        <div class="col-6 mt-2">
+          <small>Nhiệt độ</small>
+          <div class="progress"><div id="temp-bar" class="progress-bar bg-danger" style="width:0%">--°C</div></div>
+        </div>
+        <div class="col-6 mt-2">
+          <small>Áp suất</small>
+          <div class="small text-muted mb-1" id="pressure-text">-- hPa</div>
+          <div class="progress"><div id="pressure-bar" class="progress-bar" style="width:0%">--</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Map ===== */
+var lat = {{ status.position.lat }};
+var lon = {{ status.position.lon }};
+var map = L.map('map').setView([lat, lon], 14); // ↓ giảm zoom
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+var marker = L.marker([lat, lon]).addTo(map);
+var circle = L.circle([lat, lon], { radius: 5 }).addTo(map);
+
+function setBar(id, value, label) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.width = Math.min(100, Math.max(0, value)) + "%";
+  el.innerText = label;
+}
+
+async function sendControl(cmd) {
+  const fd = new FormData();
+  fd.append('cmd', cmd);
+  await fetch('{{ url_for("control") }}', { method: 'POST', body: fd });
+}
+
+/* Altitude Hold */
+let holdInterval = null;
+function startHold(cmd){ sendControl(cmd); holdInterval=setInterval(()=>sendControl(cmd),400);}
+function stopHold(){ if(holdInterval){clearInterval(holdInterval);holdInterval=null;} }
+
+['mousedown','touchstart'].forEach(ev=>{
+  document.getElementById('alt-up').addEventListener(ev,()=>startHold('up'));
+  document.getElementById('alt-down').addEventListener(ev,()=>startHold('down'));
+});
+['mouseup','mouseleave','touchend'].forEach(ev=>{
+  document.getElementById('alt-up').addEventListener(ev,stopHold);
+  document.getElementById('alt-down').addEventListener(ev,stopHold);
+});
+
+document.querySelectorAll('.control-btn').forEach(btn=>{
+  btn.addEventListener('click',e=>{ e.preventDefault(); sendControl(btn.dataset.cmd); });
+});
+
+/* Auto flight */
+let autoIntervalId=null; let autoIndex=0;
+const pattern=['forward','forward','yaw_right','left','forward'];
+const toggle=document.getElementById('auto-toggle');
+const sel=document.getElementById('auto-interval');
+toggle.addEventListener('click',()=>{
+  if(autoIntervalId){ clearInterval(autoIntervalId);autoIntervalId=null;
+    toggle.textContent='▶ Bay tự động: OFF';toggle.classList.remove('auto-active');
+  }else{
+    const t=parseInt(sel.value)||1200;
+    autoIntervalId=setInterval(()=>sendControl(pattern[autoIndex++%pattern.length]),t);
+    toggle.textContent='⏸ Bay tự động: ON';toggle.classList.add('auto-active');
+  }
+});
+
+/* Status polling */
+async function refreshStatus(){
+  try{
+    const res=await fetch('/api/status');
+    const s=await res.json();
+
+    // pin, sóng, sd
+    setBar('battery-bar',s.battery, s.battery.toFixed(1)+'%');
+    setBar('signal-bar',s.signal_strength,s.signal_strength.toFixed(1)+'%');
+    const sdUsed=s.sd_used||0, sdTotal=s.sd_total||1;
+    const sdPct=(sdUsed/sdTotal)*100;
+    setBar('sd-bar',sdPct,`${sdUsed.toFixed(0)} / ${sdTotal} MB`);
+
+    // vị trí
+    document.getElementById('altitude').innerText=s.position.alt.toFixed(1);
+    document.getElementById('position-text').innerText=`${s.position.lat.toFixed(6)}, ${s.position.lon.toFixed(6)}`;
+    marker.setLatLng([s.position.lat,s.position.lon]);
+    circle.setLatLng([s.position.lat,s.position.lon]);
+
+    // orientation (dạng số)
+    if (s.orientation){
+      document.getElementById('heading').innerText=s.orientation.yaw.toFixed(0);
+      document.getElementById('yaw-val').innerText=s.orientation.yaw.toFixed(1)+'°';
+      document.getElementById('pitch-val').innerText=s.orientation.pitch.toFixed(1)+'°';
+      document.getElementById('roll-val').innerText=s.orientation.roll.toFixed(1)+'°';
+    }
+
+    // sensors
+    if (s.sensors){
+      setBar('temp-bar', ((s.sensors.temperature+20)/80)*100, s.sensors.temperature.toFixed(1)+'°C');
+      document.getElementById('pressure-text').innerText=s.sensors.pressure.toFixed(1)+' hPa';
+      setBar('pressure-bar', ((s.sensors.pressure-900)/200)*100, s.sensors.pressure.toFixed(1)+' hPa');
+    }
+
+  }catch(err){ console.warn(err); }
+  finally{ setTimeout(refreshStatus,1500); }
+}
+refreshStatus();
+</script>
+{% endblock %}

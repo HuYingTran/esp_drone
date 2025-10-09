@@ -1,0 +1,113 @@
+{% extends "layout.html" %}
+{% block content %}
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
+/>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<style>
+  #map {
+    height: 300px;
+    border-radius: 10px;
+    margin-top: 10px;
+  }
+</style>
+
+<div class="card p-3 shadow-sm">
+  <h5 class="mb-3 text-primary">📅 Lập lịch trình bay</h5>
+
+  <form method="post" class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Tên nhiệm vụ</label>
+      <input type="text" name="name" class="form-control" placeholder="Mission name">
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Thời gian chạy</label>
+      <input id="run_at" type="text" name="run_at" class="form-control" placeholder="Chọn thời gian">
+    </div>
+
+    <div class="col-md-2">
+      <label class="form-label">Vĩ độ</label>
+      <input id="lat" type="number" name="lat" step="any" class="form-control" placeholder="Nhấp bản đồ">
+    </div>
+
+    <div class="col-md-2">
+      <label class="form-label">Kinh độ</label>
+      <input id="lon" type="number" name="lon" step="any" class="form-control" placeholder="Nhấp bản đồ">
+    </div>
+
+    <div class="col-md-3">
+      <label class="form-label">Hành động</label>
+      <select name="action" class="form-select">
+        <option value="capture">Chụp ảnh</option>
+        <option value="takeoff">Cất cánh</option>
+        <option value="land">Hạ cánh</option>
+      </select>
+    </div>
+
+    <div class="col-12">
+      <button class="btn btn-primary">➕ Thêm lịch trình</button>
+    </div>
+  </form>
+
+  <!-- BẢN ĐỒ CHỌN TỌA ĐỘ -->
+  <div id="map"></div>
+  <div class="text-muted small mt-2 text-center">🗺️ Nhấp chuột vào bản đồ để chọn vị trí (vĩ độ, kinh độ)</div>
+</div>
+
+<!-- DANH SÁCH LỊCH TRÌNH -->
+<div class="card p-3 mt-3 shadow-sm">
+  <h5 class="text-primary mb-3">🕒 Lịch trình sắp tới</h5>
+  <table class="table table-sm table-striped align-middle">
+    <thead>
+      <tr class="text-center">
+        <th>Tên</th><th>Thời gian</th><th>Vị trí</th><th>Hành động</th><th>Tạo lúc</th>
+      </tr>
+    </thead>
+    <tbody class="small">
+      {% for s in schedules %}
+        <tr>
+          <td>{{ s[1] }}</td>
+          <td>{{ s[2] }}</td>
+          <td>{{ "%.6f"|format(s[3]) }}, {{ "%.6f"|format(s[4]) }}</td>
+          <td>{{ s[5] }}</td>
+          <td>{{ s[6] }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="text-center text-muted">Chưa có lịch trình nào</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ==== SCRIPT ==== -->
+<script>
+/* ========== Datetime Picker ========== */
+flatpickr("#run_at", {
+  enableTime: true,
+  dateFormat: "Y-m-d H:i",
+  time_24hr: true,
+  minDate: "today"
+});
+
+/* ========== Leaflet Map ========== */
+var map = L.map('map').setView([21.070735, 105.383553], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+
+var marker = null;
+map.on('click', function(e) {
+  const { lat, lng } = e.latlng;
+  document.getElementById('lat').value = lat.toFixed(6);
+  document.getElementById('lon').value = lng.toFixed(6);
+  
+  if (marker) map.removeLayer(marker);
+  marker = L.marker([lat, lng]).addTo(map)
+    .bindPopup(`📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}`).openPopup();
+});
+</script>
+{% endblock %}
