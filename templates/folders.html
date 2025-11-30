@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h3>Danh sách thư mục</h3>
+
+    <div class="row mt-4">
+
+        {% for folder in folders %}
+        <div class="col-3 mb-3">
+            <a href="{{ url_for('view_folder', folder=folder.name) }}" style="text-decoration:none; color:inherit;">
+                <div class="card">
+                    {% if folder.thumbnail %}
+                        <img src="{{ url_for('serve_sub_image', folder=folder.name, filename=folder.thumbnail) }}"
+                             class="card-img-top"
+                             style="height: 150px; object-fit: cover;">
+                    {% else %}
+                        <div class="card-img-top d-flex align-items-center justify-content-center bg-light"
+                             style="height: 150px;">
+                            <span class="text-muted">Không có ảnh</span>
+                        </div>
+                    {% endif %}
+                    <div class="card-body p-2 text-center">
+                        <strong>{{ folder.name }}</strong>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

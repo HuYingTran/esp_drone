@@ -18,12 +18,12 @@
   <h5 class="mb-3 text-primary">📅 Lập lịch trình bay</h5>
 
   <form method="post" class="row g-3">
-    <div class="col-md-4">
+    <div class="col-md-2">
       <label class="form-label">Tên nhiệm vụ</label>
-      <input type="text" name="name" class="form-control" placeholder="Mission name">
+      <input type="text" name="name" class="form-control" placeholder="Mục đích">
     </div>
 
-    <div class="col-md-4">
+    <div class="col-md-2">
       <label class="form-label">Thời gian chạy</label>
       <input id="run_at" type="text" name="run_at" class="form-control" placeholder="Chọn thời gian">
     </div>
@@ -38,7 +38,7 @@
       <input id="lon" type="number" name="lon" step="any" class="form-control" placeholder="Nhấp bản đồ">
     </div>
 
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label class="form-label">Hành động</label>
       <select name="action" class="form-select">
         <option value="capture">Chụp ảnh</option>
@@ -46,8 +46,7 @@
         <option value="land">Hạ cánh</option>
       </select>
     </div>
-
-    <div class="col-12">
+    <div class="col-mod-1">
       <button class="btn btn-primary">➕ Thêm lịch trình</button>
     </div>
   </form>
@@ -63,20 +62,25 @@
   <table class="table table-sm table-striped align-middle">
     <thead>
       <tr class="text-center">
-        <th>Tên</th><th>Thời gian</th><th>Vị trí</th><th>Hành động</th><th>Tạo lúc</th>
+        <th>Tên</th><th>Thời gian</th><th>Vị trí</th><th>Hành động</th><th>Tạo lúc</th><th>Thao tác</th>
       </tr>
     </thead>
     <tbody class="small">
       {% for s in schedules %}
-        <tr>
+        <tr class="text-center align-middle">
           <td>{{ s[1] }}</td>
           <td>{{ s[2] }}</td>
           <td>{{ "%.6f"|format(s[3]) }}, {{ "%.6f"|format(s[4]) }}</td>
           <td>{{ s[5] }}</td>
           <td>{{ s[6] }}</td>
+          <td>
+            <form method="post" action="{{ url_for('delete_schedule', schedule_id=s[0]) }}" style="display:inline;">
+              <button class="btn btn-sm btn-danger" type="submit" onclick="return confirm('Xác nhận xóa lịch trình này?')">❌ Xóa</button>
+            </form>
+          </td>
         </tr>
       {% else %}
-        <tr><td colspan="5" class="text-center text-muted">Chưa có lịch trình nào</td></tr>
+        <tr><td colspan="6" class="text-center text-muted">Chưa có lịch trình nào</td></tr>
       {% endfor %}
     </tbody>
   </table>

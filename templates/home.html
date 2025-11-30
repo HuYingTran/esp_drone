@@ -20,37 +20,30 @@
   #map { height: 200px; border-radius: 12px; }  /* ↓ giảm kích thước bản đồ */
 </style>
 
-<div class="row g-3">
+<div class="row g-1">
 
   <!-- ==== CAMERA + MAP ==== -->
   <div class="card shadow-sm p-3 mb-3">
     <div class="row g-3 align-items-stretch">
       <!-- CAMERA -->
       <div class="col-lg-6 col-md-6 col-12">
-        <h6 class="text-center text-success mb-2">Ảnh camera hiện tại</h6>
+        <h6 class="text-center text-success mb-1">Ảnh camera hiện tại</h6>
         <div class="camera-box mb-2">
-          {% if latest_img %}
-            {% if latest_img.endswith('.txt') %}
-              <pre class="small bg-light">{{ (open('static/uploads/' + latest_img).read()) }}</pre>
-            {% else %}
-              <img id="camera-img" src="{{ latest_path }}" alt="Camera image">
-            {% endif %}
+          {% if latest_img_url %}
+            <img id="camera-img" src="{{ latest_img_url }}" alt="Camera image">
           {% else %}
             <img src="../static/uploads/demo.jpg" alt="demo camera">
           {% endif %}
-        </div>
-        <div class="d-flex justify-content-between small text-muted">
-          <div>File: <span id="camera-file">{{ latest_img or '—' }}</span></div>
-          <div id="camera-time">{{ '' }}</div>
         </div>
       </div>
 
       <!-- MAP -->
       <div class="col-lg-6 col-md-6 col-12">
-        <h6 class="text-center text-primary mb-2">Vị trí Drone</h6>
+        <h6 class="text-center text-primary mb-1">Vị trí Drone</h6>
         <div id="map"></div>
         <div class="mt-2 small text-muted text-center">
-          Hướng: <span id="heading">--</span>° |
+          Tọa độ: <span id="position-text">-- , --</span>   |
+          Hướng: <span id="heading">--</span>°   |
           Cao độ: <span id="altitude">--</span> m
         </div>
       </div>
@@ -61,11 +54,6 @@
   <div class="col-lg-6 col-md-12">
     <div class="card shadow-sm p-3 mb-3">
       <h6 class="text-center mb-2">Điều khiển bay</h6>
-      <div class="d-flex justify-content-center mb-2">
-        <button id="alt-up" class="btn btn-outline-primary alt-btn me-2">⬆ +1m</button>
-        <button id="alt-down" class="btn btn-outline-primary alt-btn">⬇ -1m</button>
-      </div>
-
       <div class="d-grid gap-2">
         <div class="row g-2">
           <div class="col-4"><button class="btn btn-outline-secondary btn-lg w-100 control-btn" data-cmd="up">▲</button></div>
@@ -81,10 +69,30 @@
           <div class="col-4 mt-1"><button class="btn btn-outline-secondary btn-lg w-100 control-btn" data-cmd="down">▼</button></div>
         </div>
 
-        <div class="row mt-2">
-          <div class="col-6"><button class="btn btn-success btn-lg w-100 control-btn" data-cmd="takeoff">Cất cánh</button></div>
-          <div class="col-6"><button class="btn btn-warning btn-lg w-100 control-btn" data-cmd="land">Hạ cánh</button></div>
-        </div>
+<div class="d-flex justify-content-between align-items-center mb-2">
+
+    <!-- CẤT CÁNH -->
+    <button class="btn btn-success btn-lg control-btn" data-cmd="takeoff" style="width: 160px;">
+        Cất cánh
+    </button>
+
+    <!-- TĂNG ĐỘ CAO -->
+    <button id="alt-up" class="btn btn-outline-primary alt-btn mx-2" style="width: 120px;">
+        ⬆ +1m
+    </button>
+
+    <!-- GIẢM ĐỘ CAO -->
+    <button id="alt-down" class="btn btn-outline-primary alt-btn mx-2" style="width: 120px;">
+        ⬇ -1m
+    </button>
+
+    <!-- HẠ CÁNH -->
+    <button class="btn btn-warning btn-lg control-btn" data-cmd="land" style="width: 160px;">
+        Hạ cánh
+    </button>
+
+</div>
+
 
         <div class="row mt-2">
           <div class="col-8">
@@ -125,10 +133,6 @@
           <div class="progress" style="height:18px">
             <div id="sd-bar" class="progress-bar bg-success" role="progressbar" style="width:0%">0 / 0 MB</div>
           </div>
-        </div>
-        <div class="col-12 mt-2">
-          <small>Vị trí</small>
-          <div class="small text-muted" id="position-text">-- , --</div>
         </div>
       </div>
       <h6 class="text-center text-primary mb-2">Cảm biến & Telemetry</h6>
@@ -243,5 +247,17 @@ async function refreshStatus(){
   finally{ setTimeout(refreshStatus,1500); }
 }
 refreshStatus();
+
+async function refreshImage(){
+  try {
+    const res = await fetch('/api/status');
+    const s = await res.json();
+    if(s.camera_latest){
+      document.getElementById('camera-img').src = 'data:image/jpeg;base64,' + s.camera_latest;
+    }
+  } catch(e){ console.warn(e); }
+  setTimeout(refreshImage, 1000); // mỗi giây cập nhật
+}
+refreshImage();
 </script>
 {% endblock %}

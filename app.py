@@ -5,6 +5,7 @@ import time
 import random
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, jsonify
+import requests
 
 UPLOAD_FOLDER = 'static/uploads'
 DB_FILE = 'drone.db'
@@ -126,13 +127,18 @@ def disconnect_drone():
     print("Drone disconnected (mock)")
 
 def get_drone_status():
-    if DRONE_STATE['connected']:
-        DRONE_STATE['battery'] = max(0, DRONE_STATE['battery'] - random.uniform(0, 0.05))
-        DRONE_STATE['signal_strength'] = max(10, 100 - random.uniform(0, 1))
-        DRONE_STATE['sensors']['temperature'] += random.uniform(-0.1, 0.1)
-        DRONE_STATE['sensors']['pressure'] += random.uniform(-0.5, 0.5)
-        DRONE_STATE['orientation']['yaw'] = (DRONE_STATE['orientation']['yaw'] + random.uniform(-1, 1)) % 360
-    return DRONE_STATE
+    if not SELECTED_DRONE_IP:
+        return {'connected': False, 'message': 'No drone selected'}
+
+    try:
+        url = f"http://{SELECTED_DRONE_IP}:5000/api/status"
+        resp = requests.get(url, timeout=2)
+        if resp.status_code == 200:
+            return resp.json()
+        else:
+            return {'connected': False, 'message': f'Drone returned status {resp.status_code}'}
+    except Exception as e:
+        return {'connected': False, 'message': f'Error connecting to drone: {e}'}
 
 def drone_takeoff():
     if not DRONE_STATE['connected']:
@@ -194,16 +200,104 @@ def scheduler_loop(poll_interval=15):
         except Exception as e:
             print("Scheduler error:", e)
         time.sleep(poll_interval)
+        
+import socket
+import concurrent.futures
+
+# Cổng API của drone (bạn sửa theo thực tế)
+DRONE_PORT = 5000
+SELECTED_DRONE_IP = None
+
+def is_port_open(ip, port):
+    try:
+        s = socket.socket()
+        s.settimeout(0.2)
+        s.connect((ip, port))
+        s.close()
+        return True
+    except:
+        return False
+
+
+def scan_lan(prefix="192.168.1.", port=DRONE_PORT):
+    alive = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=100) as exe:
+        futures = {
+            exe.submit(is_port_open, f"{prefix}{i}", port): f"{prefix}{i}"
+            for i in range(1, 255)
+        }
+        for f in concurrent.futures.as_completed(futures):
+            ip = futures[f]
+            if f.result():
+                alive.append(ip)
+    return alive
+
+def get_server_ip():
+    # Cách lấy IP mạng LAN của máy hiện tại
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Kết nối đến IP "ảo" để lấy IP interface mạng
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = '127.0.0.1'
+    finally:
+        s.close()
+    return ip
+
+@app.route('/api/scan')
+def api_scan():
+    prefix = request.args.get("prefix", "192.168.1.")
+    # Bạn có thể lấy port từ query nếu muốn
+    port = DRONE_PORT  # mặc định 5000
+    found_ips = scan_lan(prefix=prefix, port=port)
+    return jsonify({"found": found_ips})
+
+@app.route('/api/select-drone', methods=['POST'])
+def api_select_drone():
+    global SELECTED_DRONE_IP
+    ip = request.json.get("ip")
+    SELECTED_DRONE_IP = ip
+    return jsonify({"ok": True, "selected": ip})
+
+
+@app.route('/scan', endpoint='scan')
+def scan_page():
+    ip = get_server_ip()
+    # Tách dải mạng (prefix) dạng '192.168.10.'
+    prefix = '.'.join(ip.split('.')[:-1]) + '.'
+    return render_template('scan.html', selected_ip=SELECTED_DRONE_IP, default_prefix=prefix)
 
 # -------------------------
 # Flask routes
 # -------------------------
 @app.route('/')
 def home():
+    # if not SELECTED_DRONE_IP:
+    #     return redirect('/scan')  # chuyển hướng về trang scan nếu chưa chọn IP
+    # status = get_drone_status()
+    # latest_img = status.get('camera_latest')
+    # latest_path = url_for('uploaded_file', filename=latest_img) if latest_img else None
+    # return render_template('home.html', status=status, latest_img=latest_img, latest_path=latest_path, selected_ip=SELECTED_DRONE_IP)
+    if not SELECTED_DRONE_IP:
+        return redirect('/scan')  # nếu chưa chọn drone
+
     status = get_drone_status()
-    latest_img = status.get('camera_latest')
-    latest_path = url_for('uploaded_file', filename=latest_img) if latest_img else None
-    return render_template('home.html', status=status, latest_img=latest_img, latest_path=latest_path)
+    latest_img_base64 = status.get('camera_latest')
+
+    # Nếu có ảnh base64, tạo data URL để hiển thị trực tiếp trong HTML
+    if latest_img_base64:
+        latest_img_data_url = f"data:image/jpeg;base64,{latest_img_base64}"
+    else:
+        latest_img_data_url = None
+
+    return render_template(
+        'home.html',
+        status=status,
+        latest_img=latest_img_base64,
+        latest_img_url=latest_img_data_url,
+        selected_ip=SELECTED_DRONE_IP
+    )
 
 @app.route('/control', methods=['POST'])
 def control():
@@ -236,15 +330,67 @@ def settings():
         add_schedule(name, dt.isoformat(), lat, lon, action)
         flash('Schedule added.')
         return redirect(url_for('settings'))
-    return render_template('settings.html', schedules=get_schedules())
+    return render_template('settings.html', schedules=get_schedules(), selected_ip=SELECTED_DRONE_IP)
 
-@app.route('/gallery')
-def gallery():
-    return render_template('gallery.html', images=get_images(), schedules=get_schedules())
+@app.route('/schedule/delete/<int:schedule_id>', methods=['POST'])
+def delete_schedule(schedule_id):
+    remove_schedule(schedule_id)
+    flash('Đã xóa lịch trình.')
+    return redirect(url_for('settings'))
+
+@app.route('/folders', endpoint='folders')
+def list_folders():
+    base_path = UPLOAD_FOLDER
+    folder_list = []
+
+    for f in os.listdir(base_path):
+        folder_path = os.path.join(base_path, f)
+        if os.path.isdir(folder_path):
+
+            # Lấy file ảnh đầu tiên
+            images = [
+                img for img in os.listdir(folder_path)
+                if img.lower().endswith(('.jpg', '.jpeg', '.png', '.gif'))
+            ]
+
+            images.sort()
+
+            first_image = images[0] if images else None
+
+            folder_list.append({
+                "name": f,
+                "thumbnail": first_image
+            })
+
+    # Sắp xếp folder mới nhất lên đầu
+    folder_list.sort(key=lambda x: x["name"], reverse=True)
+
+    return render_template('folders.html', folders=folder_list)
+
+@app.route('/folders/<folder>')
+def view_folder(folder):
+    folder_path = os.path.join(UPLOAD_FOLDER, folder)
+    if not os.path.exists(folder_path):
+        return "Folder not found", 404
+    
+    # Lấy danh sách ảnh + sắp xếp theo tên
+    images = sorted([
+        f for f in os.listdir(folder_path)
+        if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif'))
+    ])
+
+    return render_template('folder_view.html',
+                           folder=folder,
+                           images=images)
+    
+@app.route('/uploads/<folder>/<filename>')
+def serve_sub_image(folder, filename):
+    return send_from_directory(os.path.join(UPLOAD_FOLDER, folder), filename)
 
 @app.route('/api/status')
 def api_status():
-    return jsonify(get_drone_status())
+    status = get_drone_status()
+    return jsonify(status)
 
 import sqlite3
 from datetime import datetime

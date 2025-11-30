@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h3>Thư mục: {{ folder }}</h3>
+
+    <a href="{{ url_for('folders') }}">&larr; Quay lại</a>
+
+    <div class="row mt-4">
+        {% for img in images %}
+        <div class="col-2 mb-3">
+            <div class="card">
+                <img src="{{ url_for('serve_sub_image', folder=folder, filename=img) }}"
+                     class="card-img-top img-fluid preview-img"
+                     data-img="{{ url_for('serve_sub_image', folder=folder, filename=img) }}"
+                     style="height: 150px; object-fit: cover; cursor: pointer;">
+                <div class="card-body p-2">
+                    <p class="small text-break">{{ img }}</p>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-muted">Thư mục này không có ảnh.</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal hiển thị ảnh -->
+<div class="modal fade" id="imgModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content" style="background: rgba(0,0,0,0.8); border: none;">
+      <span class="btn-close btn-close-white position-absolute end-0 m-3" 
+            data-bs-dismiss="modal" style="z-index: 10;"></span>
+
+      <img id="modalImage"
+           style="width: 90%; max-height: 90vh; object-fit: contain; margin: auto; display: block;">
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const imgs = document.querySelectorAll(".preview-img");
+    const modalImg = document.getElementById("modalImage");
+
+    imgs.forEach(img => {
+        img.addEventListener("click", function () {
+            modalImg.src = this.dataset.img;
+            new bootstrap.Modal(document.getElementById("imgModal")).show();
+        });
+    });
+});
+</script>
+
+{% endblock %}

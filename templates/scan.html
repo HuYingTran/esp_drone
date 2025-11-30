@@ -1,0 +1,90 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="container mt-3">
+    <h3 class="mb-3">🔍 Quét Drone trong mạng LAN</h3>
+
+    <div class="card p-4 shadow-sm">
+        <label for="prefix" class="fw-bold">Dải mạng (prefix):</label>
+        <input id="prefix" class="form-control mb-3" value="{{ default_prefix }}">
+
+        <button class="btn btn-primary w-100 mb-2" onclick="startScan()">🚀 Bắt đầu quét</button>
+
+        <button class="btn btn-outline-secondary w-100 mb-3" onclick="startScan()">🔄 Quét lại</button>
+
+        <div id="loading" class="text-center my-3" style="display:none;">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 small">Đang quét toàn bộ mạng LAN, vui lòng chờ...</p>
+        </div>
+
+        <hr>
+
+        <h5>Kết quả tìm thấy:</h5>
+        <ul id="result" class="list-group mb-3"></ul>
+
+        {% if selected_ip %}
+        <div class="alert alert-success mt-3">
+            Drone đang được chọn:  
+            <b class="text-primary">{{ selected_ip }}</b>
+            <button class="btn btn-sm btn-info float-end" onclick="pingCurrentDrone()">📡 Kiểm tra kết nối</button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function startScan() {
+    const prefix = document.getElementById("prefix").value;
+
+    document.getElementById("result").innerHTML = "";
+    document.getElementById("loading").style.display = "block";
+
+    fetch(`/api/scan?prefix=${encodeURIComponent(prefix)}`)
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById("loading").style.display = "none";
+            let ul = document.getElementById("result");
+            ul.innerHTML = "";
+
+            if (!data.found || data.found.length === 0) {
+                ul.innerHTML = '<li class="list-group-item text-danger">❌ Không tìm thấy drone nào</li>';
+                return;
+            }
+
+            data.found.forEach(ip => {
+                let li = document.createElement("li");
+                li.className = "list-group-item d-flex justify-content-between align-items-center";
+
+                li.innerHTML = `
+                    <span>📡 ${ip}</span>
+                    <button class="btn btn-success btn-sm" onclick="selectDrone('${ip}')">Chọn</button>
+                `;
+
+                ul.appendChild(li);
+            });
+        })
+        .catch(err => {
+            document.getElementById("loading").style.display = "none";
+            alert("Lỗi khi quét mạng LAN!");
+        });
+}
+
+function selectDrone(ip) {
+    fetch("/api/select-drone", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ip})
+    })
+    .then(res => res.json())
+    .then(data => {
+         alert("Đã chọn drone: " + data.selected);
+         location.reload();
+    });
+}
+
+function pingCurrentDrone() {
+    alert("🔧 Chức năng kiểm tra ping có thể thêm API riêng /api/ping-drone nếu bạn muốn!");
+}
+</script>
+
+{% endblock %}

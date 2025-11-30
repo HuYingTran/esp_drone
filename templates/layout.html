@@ -19,10 +19,22 @@
 <nav class="navbar navbar-light bg-white fixed-top shadow-sm">
   <div class="container-fluid">
     <a class="navbar-brand" href="{{ url_for('home') }}">🚁 Drone Control</a>
+      <!-- Hiển thị IP drone đã chọn -->
+      {% if selected_ip %}
+      <span class="badge bg-info text-dark ms-3" style="font-size: 0.9rem;">
+        🛰️ Đang kết nối: {{ selected_ip }}
+      </span>
+      {% else %}
+      <span class="badge bg-warning text-dark ms-3" style="font-size: 0.9rem;">
+        ⚠️ Chưa chọn drone
+      </span>
+      {% endif %}
     <div class="d-flex">
       <a href="{{ url_for('home') }}" class="btn btn-outline-primary btn-sm me-2">Trang chủ</a>
       <a href="{{ url_for('settings') }}" class="btn btn-outline-secondary btn-sm me-2">Lịch trình</a>
-      <a href="{{ url_for('gallery') }}" class="btn btn-outline-success btn-sm">Thư viện</a>
+      <a href="{{ url_for('folders') }}" class="btn btn-outline-success btn-sm me-2">Thư viện</a>
+      <!-- Nút mới thêm -->
+      <a href="{{ url_for('scan') }}" class="btn btn-outline-success btn-sm me-2">Quét Drone</a>
     </div>
   </div>
 </nav>
